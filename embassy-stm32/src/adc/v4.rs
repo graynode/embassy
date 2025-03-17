@@ -311,6 +311,35 @@ impl<'d, T: Instance> Adc<'d, T> {
         })
     }
 
+    /// Enable differential channel.
+    /// Caution:
+    /// : When configuring the positive channel “i” in differential input mode, its negative input voltage
+    /// VINN[i+1] is connected. As a consequence, this channel is no longer usable in
+    /// single-ended mode or in differential mode and must never be configured to be converted.
+    /// Some channels are shared between ADC1/ADC2: this can make the
+    /// channel on the other ADC unusable. The only exception is when ADC master and the slave
+    /// operate in interleaved mode.
+    #[cfg(stm32u5)]
+    pub fn set_differential_channel(&mut self, ch: usize, enable: bool) {
+        T::regs().cr().modify(|w| w.set_aden(false)); // disable adc
+        T::regs().difsel().modify(|w| {
+            w.set_difsel(
+                ch,
+                if enable {
+                    Difsel::DIFFERENTIAL
+                } else {
+                    Difsel::SINGLE_ENDED
+                },
+            );
+        });
+        T::regs().cr().modify(|w| w.set_aden(true));
+    }
+
+    #[cfg(stm32u5)]
+    pub fn set_differential(&mut self, channel: &mut impl AdcChannel<T>, enable: bool) {
+        self.set_differential_channel(channel.channel() as usize, enable);
+    }
+
     /// Perform a single conversion.
     fn convert(&mut self) -> u16 {
         T::regs().isr().modify(|reg| {
